@@ -1,0 +1,42 @@
+[tool.poetry]
+name = "pythonproject"
+version = "0.1.0"
+description = "My Python Project"
+authors = ["Serzh Ivashchenko <serzh466163@gmail.com>"]
+readme = "README.md"
+
+packages = [
+    {include = "pythonproject", from = "src"}
+]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<=3.13.3"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.5"
+flake8 = "^6.0.0"
+pytest-cov = "^6.1.1"
+
+[tool.poetry.group.lint.dependencies]
+black = "^23.3.0"
+isort = "^5.12.0"
+mypy = "^1.3.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=src --cov-report=html --cov-report=term"
+
+[tool.coverage.run]
+omit = ["*/tests/*"]
+source = ["src"]
+branch = true  # Проверять покрытие ветвлений
+
+[tool.coverage.report]
+precision = 1
+show_missing = true
+skip_covered = true
+fail_under = 80
