@@ -1,42 +1,19 @@
-import functools
+import pandas as pd
+from datetime import datetime, timedelta
+from typing import Optional
 import json
 import logging
-from typing import Any, Callable, Optional
-
-import pandas as pd
-
-logger = logging.getLogger(__name__)
 
 
-def report_decorator(filename: Optional[str] = None) -> Callable:
-    """Decorator to save report results to file.
+def report_decorator(filename=None):
+    """Декоратор для сохранения отчетов в файл."""
 
-    Args:
-        filename: Optional filename to save report
-
-    Returns:
-        Decorator function
-    """
-
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
+    def decorator(func):
+        def wrapper(*args, **kwargs):
             result = func(*args, **kwargs)
-
-            # Determine filename
-            report_filename = filename or f"{func.__name__}_report.json"
-
-            # Save to file
-            try:
-                with open(report_filename, "w") as f:
-                    if isinstance(result, pd.DataFrame):
-                        json.dump(result.to_dict(orient="records"), f)
-                    else:
-                        json.dump(result, f)
-                logger.info(f"Report saved to {report_filename}")
-            except Exception as e:
-                logger.error(f"Error saving report: {e}")
-
+            fname = filename if filename else f"report_{func.__name__}_{datetime.now().strftime('%Y%m%d')}.json"
+            with open(fname, 'w') as f:
+                json.dump(result, f, ensure_ascii=False, indent=2)
             return result
 
         return wrapper
@@ -45,58 +22,48 @@ def report_decorator(filename: Optional[str] = None) -> Callable:
 
 
 @report_decorator()
-def spending_by_category(transactions: pd.DataFrame, category: str, start_date):
-    if not pd.api.types.is_datetime64_any_dtype(transactions["Дата_операции"]):
-        """Calculate spending by category since a given date."""
-        # Преобразуем даты в datetime
-        transactions = transactions.copy()  # Чтобы избежать SettingWithCopyWarning
-        transactions["Дата_операции"] = pd.to_datetime(transactions["Дата_операции"])
-        start_date = pd.to_datetime(start_date)
+def spending_by_category(transactions: pd.DataFrame, category: str, date: Optional[str] = None) -> Dict[str, float]:
+    """Траты по категории за последние 3 месяца."""
+    end_date = pd.to_datetime(date) if date else pd.to_datetime(datetime.now())
+    start_date = end_date - pd.DateOffset(months=3)
 
-    # Фильтруем данные
-    mask = (
-            (transactions["Дата_операции"] >= start_date) &
-            (transactions["Описание"].str.contains(category, case=False))
-    )
-    filtered = transactions[mask]
+    filtered = transactions[
+        (transactions['Категория'] == category) &
+        (transactions['Дата операции'] >= start_date) &
+        (transactions['Дата операции'] <= end_date)
+        ]
 
-    return filtered["Сумма"].sum()
+    return {
+        "category": category,
+        "total": float(filtered['Сумма операции'].sum()),
+        "by_month": filtered.groupby(filtered['Дата операции'].dt.to_period('M'))['Сумма операции'].sum().to_dict()
+    }
 
 
 @report_decorator()
-def spending_by_weekday(transactions, start_date):
-    transactions = transactions.copy()
-    transactions["Дата_операции"] = pd.to_datetime(transactions["Дата_операции"])
-    start_date = pd.to_datetime(start_date)
+def spending_by_weekday(transactions: pd.DataFrame, date: Optional[str] = None) -> Dict[str, float]:
+    """Средние траты по дням недели."""
+    end_date = pd.to_datetime(date) if date else pd.to_datetime(datetime.now())
+    start_date = end_date - pd.DateOffset(months=3)
 
-    filtered = transactions[transactions["Дата_операции"] >= start_date]
+    filtered = transactions[
+        (transactions['Дата операции'] >= start_date) &
+        (transactions['Дата операции'] <= end_date)
+        ]
 
-    # Создаем все возможные дни недели
-    weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    filtered["День_недели"] = filtered["Дата_операции"].dt.day_name()
-
-    # Группируем и добавляем отсутствующие дни
-    result = filtered.groupby("День_недели", as_index=False)["Сумма"].sum()
-    result = result.set_index("День_недели").reindex(weekdays).fillna(0).reset_index()
-
-    return result
+    return filtered.groupby(filtered['Дата операции'].dt.day_name())['Сумма операции'].mean().to_dict()
 
 
-@report_decorator("workday_spending_report.json")
-def spending_by_workday(transactions, start_date):
-    transactions = transactions.copy()
-    transactions["Дата_операции"] = pd.to_datetime(transactions["Дата_операции"])
-    start_date = pd.to_datetime(start_date)
+@report_decorator()
+def spending_by_workday(transactions: pd.DataFrame, date: Optional[str] = None) -> Dict[str, float]:
+    """Средние траты в рабочие/выходные дни."""
+    end_date = pd.to_datetime(date) if date else pd.to_datetime(datetime.now())
+    start_date = end_date - pd.DateOffset(months=3)
 
-    filtered = transactions[transactions["Дата_операции"] >= start_date]
-    filtered["Тип_дня"] = filtered["Дата_операции"].apply(
-        lambda x: "Рабочий" if x.weekday() < 5 else "Выходной"
-    )
+    filtered = transactions[
+        (transactions['Дата операции'] >= start_date) &
+        (transactions['Дата операции'] <= end_date)
+        ].copy()
 
-    # Группируем и добавляем оба типа дней
-    result = filtered.groupby("Тип_дня", as_index=False)["Сумма"].sum()
-    if len(result) < 2:
-        types = ["Рабочий", "Выходной"]
-        result = result.set_index("Тип_дня").reindex(types).fillna(0).reset_index()
-
-    return result
+    filtered['is_weekend'] = filtered['Дата операции'].dt.dayofweek >= 5
+    return filtered.groupby('is_weekend')['Сумма операции'].mean().to_dict()
