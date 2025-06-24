@@ -1,5 +1,6 @@
 import pytest
-from src.services import profitable_cashback_categories
+
+from src.analysis_bank.services import profitable_cashback_categories
 from datetime import datetime
 
 @pytest.fixture
@@ -25,3 +26,7 @@ def sample_transactions():
 def test_profitable_cashback_categories(sample_transactions):
     result = profitable_cashback_categories(sample_transactions, 2023, 1)
     assert result == {"Супермаркеты": 80.0}
+
+def test_unprofitable_cashback_categories():
+    # Тестируем случаи с отрицательным кэшбэком
+    pass

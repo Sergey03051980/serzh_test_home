@@ -22,3 +22,7 @@ def test_count_transactions_by_category(sample_transactions):
     categories = ['Перевод организации', 'Открытие вклада']
     result = count_transactions_by_category(sample_transactions, categories)
     assert result == {'Перевод организации': 1, 'Открытие вклада': 1}
+
+def test_search_empty_transactions():
+    # Тест поиска по пустой базе
+    pass

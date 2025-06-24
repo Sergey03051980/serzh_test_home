@@ -4,6 +4,32 @@ import requests
 from datetime import datetime
 import logging
 from typing import Dict, List, Any
+from flask import Flask, render_template
+from pydantic import BaseModel, field_validator
+
+# Инициализация Flask-приложения
+app = Flask(__name__, template_folder='templates')
+
+class DateRequest(BaseModel):
+    date_str: str
+
+    @field_validator('date_str')
+    def validate_date_str(cls, v: str) -> str:
+        try:
+            datetime.strptime(v, "%Y-%m-%d %H:%M:%S")
+            return v
+        except ValueError:
+            raise ValueError("Invalid date format. Use YYYY-MM-DD HH:MM:SS")
+
+@app.route('/')
+def home_page():
+    """Контроллер главной страницы"""
+    return render_template('index.html', title='Home')
+
+@app.route('/events')
+def events_page():
+    """Контроллер страницы событий"""
+    return render_template('events.html', title='Events')
 
 
 def get_greeting(time: datetime) -> str:
@@ -20,9 +46,14 @@ def get_greeting(time: datetime) -> str:
 
 
 def get_currency_rates(currencies: List[str]) -> List[Dict[str, Any]]:
-    """Получает курсы валют с API."""
-    # Здесь должен быть реальный API-запрос
-    return [{"currency": curr, "rate": 75.0} for curr in currencies]
+    try:
+        response = requests.get("https://api.exchangerate-api.com/v4/latest/USD", timeout=5)
+        response.raise_for_status()
+        rates = response.json()['rates']
+        return [{"currency": curr, "rate": rates.get(curr, 0)} for curr in currencies]
+    except Exception as e:
+        logging.error(f"Currency API error: {e}")
+        return [{"currency": curr, "rate": 0, "error": str(e)} for curr in currencies]
 
 
 def get_stock_prices(stocks: List[str]) -> List[Dict[str, Any]]:
@@ -54,3 +85,6 @@ def main_page(date_str: str) -> Dict[str, Any]:
     except Exception as e:
         logging.error(f"Error in main_page: {e}")
         raise
+
+if __name__ == '__main__':
+    app.run(debug=True)
