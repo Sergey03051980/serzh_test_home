@@ -1,6 +1,19 @@
 import pytest
 from datetime import datetime, timedelta
 from typing import Dict, List, Any
+import pandas as pd
+
+@pytest.fixture
+def sample_dataframe():
+    """Фикстура с тестовыми данными для DataFrame"""
+    data = {
+        'Дата операции': ['2023-01-01', '2023-01-02', '2023-01-03'],
+        'Категория': ['Еда', 'Транспорт', 'Еда'],
+        'Сумма': [1000, 500, 800],
+        'Статус': ['OK', 'OK', 'OK']
+    }
+    return pd.DataFrame(data)
+
 
 @pytest.fixture
 def sample_card_numbers() -> List[str]:
@@ -103,3 +116,8 @@ def edge_cases() -> List[Dict[str, Any]]:
         {"operationAmount": {"currency": {}}},
         None
     ]
+
+@pytest.fixture
+def client():
+    app.config['TESTING'] = True  # Режим тестирования Flask
+    return app.test_client()  # Создаём тестовый клиент
